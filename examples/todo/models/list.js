@@ -15,7 +15,7 @@ var connection = mysql.createConnection({
   database: config.database
 })
 
-class Todo {
+class list {
 
   //NOTE: future implementation, add user ID here.
   init() {
@@ -27,15 +27,19 @@ class Todo {
     })
 
     // check for tables and create if it is not there.
-    connection.query("SHOW TABLES LIKE 'tasks'", (error, results, fields) => {
+    connection.query("SHOW TABLES LIKE 'Lists'", (error, results, fields) => {
       if (error) throw error
 
       if (results.length === 0) {
-        console.log("Creating TABLE 'tasks'")
-        connection.query('CREATE TABLE tasks (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, description VARCHAR(50), done BOOL, date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  date_last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);', (error, results, fields) => {
-          if (error) throw error
-          console.log('Table created: ', results)
-        })
+        console.log("Creating TABLE 'Lists'")
+        connection.query(`CREATE TABLE IF NOT EXISTS 'todo'.'lists' (
+  'id' INT NOT NULL AUTO_INCREMENT,
+  'name' VARCHAR(45) NULL,
+  PRIMARY KEY ('id'))
+ENGINE = InnoDB;`, (error, results, fields) => {
+            if (error) throw error
+            console.log('Table created: ', results)
+          })
       }
       else {
         console.log("TABLE already exist, using: ", results)
@@ -44,14 +48,27 @@ class Todo {
   }
 
   load(callback) {
-    let sql = 'SELECT * FROM `task`'
+    let sql = 'SELECT * FROM `Lists`'
     connection.query(sql, (error, results, fields) => {
       if (error) throw error
+      this.attachTODOs(results)
       callback(error, results)
     })
   }
+  attachTODOs(lists) {
+    console.log("ayman attach ")
+    lists.forEach(function (element) {
+      let sql = `SELECT * FROM tasks where lists_id =${element.id}`
+      console.log(sql),
+        connection.query(sql, (error, results, fields) => {
+          if (error) throw error
+          element.todos = { results }
+          console.log(results, element.todos)
+        })
+    }, this);
+  }
   loadID(id, callback) {
-    let sql = 'SELECT * FROM `task` WHERE id=?'
+    let sql = 'SELECT * FROM `Lists` WHERE id=?'
     console.log(id)
     sql = mysql.format(sql, parseInt(id.split(":")[1] || id))
     console.log(sql)
@@ -62,9 +79,9 @@ class Todo {
   }
 
 
-  create(_description, callback) {
-    let sql = 'INSERT INTO `task` (`id`,`description`,`done`,`date_created`,`date_last_modified`) VALUES (NULL, ? , "0", NULL, NULL)'
-    let inserts = [_description];
+  create(name, callback) {
+    let sql = 'INSERT INTO `Lists` (`id`,`name`) VALUES (NULL, ? )'
+    let inserts = [name];
     sql = mysql.format(sql, inserts);
 
     connection.query(sql, (error, results, fields) => {
@@ -91,52 +108,6 @@ class Todo {
       callback(error, results)
     })
   }
-  markAsDone(id, callback) {
-    let sql = 'UPDATE `task` SET done = ? WHERE id=?'
-    this.load((error, todos) => {
-      if (error) { callback(error); return }
-
-      const todo = todos.find(t => t.id === id)
-      if (todo == null) {
-        const error = new Error(`Todo with ID ${id} does not exist`)
-        error.name = 'NotFound'
-
-        callback(error)
-        return
-      }
-
-      todo.done = true
-
-      this.save(todos, error => {
-        if (error) { callback(error); return }
-
-        callback(null, todo)
-      })
-    })
-  }
-
-  markAsNotDone(id, callback) {
-    this.load((error, todos) => {
-      if (error) { callback(error); return }
-
-      const todo = todos.find(t => t.id === id)
-      if (todo == null) {
-        const error = new Error(`Todo with ID ${id} does not exist`)
-        error.name = 'NotFound'
-
-        callback(error)
-        return
-      }
-
-      todo.done = false
-
-      this.save(todos, error => {
-        if (error) { callback(error); return }
-
-        callback(null, todo)
-      })
-    })
-  }
 
   remove(id, callback) {
     let sql = 'DELETE FROM `task`  WHERE id=?'
@@ -152,4 +123,4 @@ class Todo {
 
 }
 
-module.exports = new Todo()
+module.exports = new list()
